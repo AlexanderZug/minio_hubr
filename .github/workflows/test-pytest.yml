@@ -1,0 +1,44 @@
+name: Test Pytest
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      minio:
+        image: minio/minio
+        env:
+          MINIO_ROOT_USER: USERNAME
+          MINIO_ROOT_PASSWORD: PASSWORD
+        ports:
+          - 9000:9000
+        options: > 
+          --entrypoint sh
+        command: >
+          -c "mkdir -p /data/public-customers-downloads && minio server /data"
+
+    env:
+      MINIO_BASE_URL: http://localhost:9000
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: pip install -r requirements_dev.txt
+
+      - name: Wait for MinIO to be ready
+        run: |
+          until curl --output /dev/null --silent --head --fail $MINIO_BASE_URL/minio/health/live; do
+            printf '.'
+            sleep 1
+          done
+
+      - name: Run tests
+        run: |
+          pytest -v ./
